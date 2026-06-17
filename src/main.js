@@ -1,6 +1,11 @@
 import './style.css';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ---------------------------------------------------------------------------
 // Salon sabitleri (modern, yüksek tavanlı dairesel sergi salonu)
@@ -11,6 +16,12 @@ const PANEL_RADIUS = 17.5;    // fotoğraf panellerinin asılı olduğu yarıça
 const WALK_BOUND = 15;        // ziyaretçinin gidebileceği son sınır (duvardan ~2.5m)
 const EYE_HEIGHT = 1.7;
 const FOCUS_DIST = 7;         // bilgi kartının açıldığı mesafe
+const CLARITY_DIST = 9;       // fotoğrafın netleşmeye başladığı mesafe
+const PHOTO_DIM = 0.62;       // uzaktaki fotoğraf parlaklığı (sönük)
+const PHOTO_BRIGHT = 0.9;     // yakındaki fotoğraf parlaklığı (net, bloom eşiği altında)
+
+// Yüksek efekt modu (bloom + yansıyan zemin) — mobil/dokunmatikte kapalı
+const HIGH_FX = !(matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
 
 // ---------------------------------------------------------------------------
 // Renderer / sahne / kamera
@@ -21,7 +32,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.08;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -34,71 +45,124 @@ camera.position.set(0, EYE_HEIGHT, 0);
 // Salon kabuğu: zemin, dairesel duvar, tavan, ışıklık
 // ---------------------------------------------------------------------------
 function buildHall() {
-  // Zemin — açık, hafif parlak cilalı beton
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0xdadde1, roughness: 0.35, metalness: 0.0 });
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(WALL_RADIUS, 96), floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  scene.add(floor);
+  // --- Zemin ---
+  if (HIGH_FX) {
+    // Cilalı zemin: altta gerçek yansıma (Reflector) + üstte yarı saydam beton
+    const reflector = new Reflector(new THREE.CircleGeometry(WALL_RADIUS, 96), {
+      textureWidth: Math.min(window.innerWidth, 1280),
+      textureHeight: Math.min(window.innerHeight, 1280),
+      color: 0x8a8f96,
+    });
+    reflector.rotation.x = -Math.PI / 2;
+    reflector.position.y = 0.0;
+    scene.add(reflector);
+
+    const glossMat = new THREE.MeshStandardMaterial({
+      color: 0xd7dade, roughness: 0.45, metalness: 0.0,
+      transparent: true, opacity: 0.62,
+    });
+    const gloss = new THREE.Mesh(new THREE.CircleGeometry(WALL_RADIUS, 96), glossMat);
+    gloss.rotation.x = -Math.PI / 2;
+    gloss.position.y = 0.002;
+    gloss.receiveShadow = true;
+    gloss.renderOrder = 1;
+    scene.add(gloss);
+  } else {
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xd7dade, roughness: 0.38, metalness: 0.0 });
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(WALL_RADIUS, 96), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+  }
 
   // İnce zemin halkası (panellerin önünde dekoratif çizgi)
-  const lineMat = new THREE.MeshStandardMaterial({ color: 0xb9bdc2, roughness: 0.5 });
-  const line = new THREE.Mesh(new THREE.RingGeometry(WALK_BOUND - 0.05, WALK_BOUND + 0.05, 96), lineMat);
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xaeb3b9, roughness: 0.5 });
+  const line = new THREE.Mesh(new THREE.RingGeometry(WALK_BOUND - 0.04, WALK_BOUND + 0.04, 96), lineMat);
   line.rotation.x = -Math.PI / 2;
-  line.position.y = 0.011;
+  line.position.y = 0.012;
+  line.renderOrder = 2;
   scene.add(line);
 
   // Dairesel duvar (içten görünür)
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf4f5f7, roughness: 0.9, side: THREE.BackSide });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xf5f6f8, roughness: 0.95, side: THREE.BackSide });
   const wall = new THREE.Mesh(new THREE.CylinderGeometry(WALL_RADIUS, WALL_RADIUS, CEIL_HEIGHT, 96, 1, true), wallMat);
   wall.position.y = CEIL_HEIGHT / 2;
   wall.receiveShadow = true;
   scene.add(wall);
 
   // Duvar dibi süpürgelik (koyu şerit)
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.7, side: THREE.BackSide });
-  const baseband = new THREE.Mesh(new THREE.CylinderGeometry(WALL_RADIUS - 0.01, WALL_RADIUS - 0.01, 0.12, 96, 1, true), baseMat);
-  baseband.position.y = 0.06;
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x363b43, roughness: 0.7, side: THREE.BackSide });
+  const baseband = new THREE.Mesh(new THREE.CylinderGeometry(WALL_RADIUS - 0.01, WALL_RADIUS - 0.01, 0.14, 96, 1, true), baseMat);
+  baseband.position.y = 0.07;
   scene.add(baseband);
 
-  // Tavan — açık gri, ortasında parlak ışıklık
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xe8eaed, roughness: 1.0, side: THREE.DoubleSide });
+  // Tavan
+  const ceilMat = new THREE.MeshStandardMaterial({ color: 0xe9ebee, roughness: 1.0, side: THREE.DoubleSide });
   const ceil = new THREE.Mesh(new THREE.CircleGeometry(WALL_RADIUS, 96), ceilMat);
   ceil.rotation.x = Math.PI / 2;
   ceil.position.y = CEIL_HEIGHT;
   scene.add(ceil);
 
-  // Merkezi ışıklık (parlayan disk — gün ışığı hissi)
-  const skylightMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const skylight = new THREE.Mesh(new THREE.CircleGeometry(7, 64), skylightMat);
+  // Merkezi ışıklık — yumuşak gradyanlı parlayan disk (gün ışığı hissi)
+  const skylight = new THREE.Mesh(
+    new THREE.CircleGeometry(7, 64),
+    new THREE.MeshBasicMaterial({ map: makeRadialTexture('#ffffff', '#dfe9f5'), toneMapped: false })
+  );
   skylight.rotation.x = Math.PI / 2;
   skylight.position.y = CEIL_HEIGHT - 0.02;
   scene.add(skylight);
 
   // Işıklık çerçevesi (ince halka)
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.6 });
-  const skyFrame = new THREE.Mesh(new THREE.TorusGeometry(7, 0.12, 12, 80), frameMat);
+  const skyFrame = new THREE.Mesh(
+    new THREE.TorusGeometry(7, 0.1, 12, 80),
+    new THREE.MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.6 })
+  );
   skyFrame.rotation.x = Math.PI / 2;
   skyFrame.position.y = CEIL_HEIGHT - 0.05;
   scene.add(skyFrame);
 
+  // Işıklıktan inen yumuşak hacim hissi (additif glow sprite)
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makeRadialTexture('rgba(255,250,240,0.9)', 'rgba(255,250,240,0)'),
+    transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  glow.position.set(0, CEIL_HEIGHT - 3, 0);
+  glow.scale.set(20, 14, 1);
+  scene.add(glow);
+
   // TÜREB logosu — zemin merkezinde şeffaf kakma
   new THREE.TextureLoader().load('assets/logo/tureb-logo.png', (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    const logoMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.5, depthWrite: false });
+    const logoMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.42, depthWrite: false });
     const logo = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), logoMat);
     logo.rotation.x = -Math.PI / 2;
     logo.position.y = 0.02;
+    logo.renderOrder = 3;
     scene.add(logo);
   });
+}
+
+// Yumuşak radyal gradyan dokusu (merkez → kenar)
+function makeRadialTexture(inner, outer) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, inner);
+  g.addColorStop(1, outer);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 // ---------------------------------------------------------------------------
 // Aydınlatma — parlak, eşit dağılımlı modern galeri ışığı
 // ---------------------------------------------------------------------------
 function buildLights() {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd8dadd, 0.75));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd8dadd, 0.7));
 
   // Işıklıktan gelen ana ışık (gölge üretir)
   const key = new THREE.DirectionalLight(0xfff6ec, 1.15);
@@ -157,18 +221,14 @@ function buildPanels(photos, textures) {
     matte.position.z = 0.115;
     group.add(matte);
 
-    // Fotoğrafın kendisi (tam parlaklıkta, ışıktan bağımsız)
+    // Fotoğrafın kendisi — gerçek renkler (tone-mapping ve ışıktan bağımsız).
+    // Uzaktayken hafif sönük başlar, yaklaşınca netleşir (updateFocus).
     const tex = textures[p.id];
-    const photoMat = new THREE.MeshBasicMaterial({ map: tex || null, color: tex ? 0xffffff : 0x888888 });
+    const photoMat = new THREE.MeshBasicMaterial({ map: tex || null, color: 0xffffff, toneMapped: false });
+    photoMat.color.setScalar(PHOTO_DIM);
     const photo = new THREE.Mesh(new THREE.PlaneGeometry(IMG, IMG), photoMat);
     photo.position.z = 0.12;
     group.add(photo);
-
-    // Üstte ışık şeridi (track light fikstürü — parlayan)
-    const stripMat = new THREE.MeshBasicMaterial({ color: 0xfff4e0 });
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(IMG * 0.8, 0.06, 0.06), stripMat);
-    strip.position.set(0, IMG / 2 + 0.5, 0.25);
-    group.add(strip);
 
     // Alt etiket (başlık + fotoğrafçı)
     const labelTex = makeLabelTexture(p.title, p.photographer);
@@ -182,6 +242,7 @@ function buildPanels(photos, textures) {
     panels.push({
       group,
       frameMat,
+      photoMat,
       data: p,
       center: new THREE.Vector3(x, centerY, z),
       baseScale: 1,
@@ -305,13 +366,20 @@ function updateFocus(dt) {
     }
   }
 
-  // Parıltı + hafif büyüme animasyonu
+  // Parıltı + hafif büyüme + mesafeye göre netleşme animasyonu
   for (const panel of panels) {
-    const target = panel === activePanel ? 0.9 : 0;
+    const target = panel === activePanel ? 1.4 : 0;
     panel.frameMat.emissiveIntensity += (target - panel.frameMat.emissiveIntensity) * Math.min(1, dt * 8);
     const ts = panel === activePanel ? 1.035 : 1;
     const s = panel.group.scale.x + (ts - panel.group.scale.x) * Math.min(1, dt * 8);
     panel.group.scale.setScalar(s);
+
+    // Yaklaştıkça parlaklık PHOTO_DIM → PHOTO_BRIGHT (yumuşak geçiş)
+    const d = camPos.distanceTo(panel.center);
+    const t = THREE.MathUtils.clamp((CLARITY_DIST - d) / (CLARITY_DIST - 2.5), 0, 1);
+    const targetB = PHOTO_DIM + (PHOTO_BRIGHT - PHOTO_DIM) * t;
+    const curB = panel.photoMat.color.r;
+    panel.photoMat.color.setScalar(curB + (targetB - curB) * Math.min(1, dt * 6));
   }
 }
 
@@ -465,7 +533,7 @@ if (isTouch) {
 }
 
 // ---------------------------------------------------------------------------
-// Rüzgâr sesi — sentezlenmiş (filtrelenmiş gürültü), butonla aç/kapat
+// Rüzgar sesi — sentezlenmiş (filtrelenmiş gürültü), butonla aç/kapat
 // ---------------------------------------------------------------------------
 const soundBtn = document.getElementById('sound-btn');
 const soundIcon = document.getElementById('sound-icon');
@@ -484,7 +552,7 @@ function ensureWind() {
   noise.buffer = buf;
   noise.loop = true;
 
-  // Rüzgâr tınısı: alçak/yüksek geçiren filtre zinciri
+  // Rüzgar tınısı: alçak/yüksek geçiren filtre zinciri
   const hp = audioCtx.createBiquadFilter();
   hp.type = 'highpass';
   hp.frequency.value = 120;
@@ -529,16 +597,60 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------------------
+// Havada süzülen toz zerreleri (ışıkta parıldayan atmosfer)
+// ---------------------------------------------------------------------------
+let dust = null;
+function buildDust() {
+  const N = 320;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = Math.random() * (WALL_RADIUS - 1);
+    const a = Math.random() * Math.PI * 2;
+    pos[i * 3] = Math.cos(a) * r;
+    pos[i * 3 + 1] = 0.4 + Math.random() * (CEIL_HEIGHT - 0.8);
+    pos[i * 3 + 2] = Math.sin(a) * r;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.06,
+    map: makeRadialTexture('rgba(255,255,255,0.9)', 'rgba(255,255,255,0)'),
+    transparent: true, opacity: 0.5, depthWrite: false,
+    blending: THREE.AdditiveBlending, sizeAttenuation: true,
+  });
+  dust = new THREE.Points(geo, mat);
+  scene.add(dust);
+}
+
+// ---------------------------------------------------------------------------
 // Sahneyi kur ve döngüyü başlat
 // ---------------------------------------------------------------------------
 buildHall();
 buildLights();
+buildDust();
 scene.add(controls.object);
+
+// Post-processing zinciri (yalnız HIGH_FX) — çok hafif bloom.
+// Eşik 0.92; fotoğraf parlaklığı bunun ALTINDA tutulduğu için (bkz. updateFocus)
+// bloom yalnız ışıklık/tavan gibi parlak yüzeyleri yakalar, fotoğrafları asla.
+let composer = null;
+if (HIGH_FX) {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  composer.addPass(new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.3,   // güç (çok az)
+    0.5,   // yarıçap
+    0.92   // eşik
+  ));
+  composer.addPass(new OutputPass());
+}
 
 addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 const clock = new THREE.Clock();
@@ -547,7 +659,21 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (controls.isLocked || (isTouch && started)) updateMovement(dt);
   updateFocus(dt);
-  renderer.render(scene, camera);
+
+  // Toz zerrelerini yavaşça yukarı süzdür
+  if (dust) {
+    const p = dust.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      let y = p.getY(i) + dt * 0.12;
+      if (y > CEIL_HEIGHT - 0.4) y = 0.4;
+      p.setY(i, y);
+    }
+    p.needsUpdate = true;
+    dust.rotation.y += dt * 0.01;
+  }
+
+  if (composer) composer.render();
+  else renderer.render(scene, camera);
 }
 animate();
 
