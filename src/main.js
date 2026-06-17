@@ -20,14 +20,17 @@ const CLARITY_DIST = 9;       // fotoğrafın netleşmeye başladığı mesafe
 const PHOTO_DIM = 0.62;       // uzaktaki fotoğraf parlaklığı (sönük)
 const PHOTO_BRIGHT = 0.9;     // yakındaki fotoğraf parlaklığı (net, bloom eşiği altında)
 
-// Yüksek efekt modu (bloom + yansıyan zemin) — mobil/dokunmatikte kapalı
-const HIGH_FX = !(matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+// Dokunmatik cihaz mı? (kontrol şeması + efekt kalitesi ayarı için)
+const TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+// Yüksek efekt modu (bloom + yansıyan zemin) — her cihazda açık,
+// mobilde çözünürlük/piksel oranı düşürülerek performans korunur.
+const HIGH_FX = true;
 
 // ---------------------------------------------------------------------------
 // Renderer / sahne / kamera
 // ---------------------------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, TOUCH ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -48,9 +51,10 @@ function buildHall() {
   // --- Zemin ---
   if (HIGH_FX) {
     // Cilalı zemin: altta gerçek yansıma (Reflector) + üstte yarı saydam beton
+    const reflectRes = TOUCH ? 640 : 1280;
     const reflector = new Reflector(new THREE.CircleGeometry(WALL_RADIUS, 96), {
-      textureWidth: Math.min(window.innerWidth, 1280),
-      textureHeight: Math.min(window.innerHeight, 1280),
+      textureWidth: Math.min(window.innerWidth, reflectRes),
+      textureHeight: Math.min(window.innerHeight, reflectRes),
       color: 0x8a8f96,
     });
     reflector.rotation.x = -Math.PI / 2;
@@ -280,7 +284,7 @@ const direction = new THREE.Vector3();
 const WALK_SPEED = 26;
 
 // Dokunmatik / mobil giriş durumu
-const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const isTouch = TOUCH;
 let started = false;                 // sergiye girildi mi
 const touchMove = { x: 0, y: 0 };    // joystick: x=yan, y=ileri(-)/geri(+)
 let yaw = 0, pitch = 0;              // mobil bakış açısı (rad)
