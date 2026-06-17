@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Rüzgârın Ardına Bakmak — TÜREB</title>
+    <link rel="icon" href="assets/logo/tureb-logo.png" />
+  </head>
+  <body>
+    <!-- Karşılama ekranı -->
+    <div id="overlay">
+      <div id="welcome">
+        <img id="welcome-logo" src="assets/logo/tureb-logo.png" alt="TÜREB" />
+        <h1 id="welcome-title">Rüzgârın Ardına Bakmak</h1>
+        <p id="welcome-sub">TÜREB · Dünya Rüzgâr Günü Fotoğraf Yarışması</p>
+        <p id="welcome-intro"></p>
+        <button id="enter-btn" disabled>Yükleniyor…</button>
+        <div id="loading-bar"><div id="loading-fill"></div></div>
+        <p id="loading-text">0 / 0 görsel</p>
+      </div>
+    </div>
+
+    <!-- Oyun içi HUD -->
+    <div id="hud" class="hidden">
+      <div id="instructions">
+        <strong>Gezinme</strong><br />
+        <span class="key">W A S D</span> / ok tuşları ile hareket<br />
+        Fare ile bakış · <span class="key">Shift</span> ile hızlan<br />
+        <span class="key">ESC</span> serbest bırak · <span class="key">M</span> rüzgâr sesi
+      </div>
+      <div id="info-card" class="hidden">
+        <h2 id="card-title"></h2>
+        <p id="card-photographer"></p>
+        <p id="card-meta"></p>
+        <p id="card-desc"></p>
+      </div>
+      <div id="crosshair"></div>
+
+      <!-- Rüzgâr sesi aç/kapat -->
+      <button id="sound-btn" title="Rüzgâr sesi">
+        <span id="sound-icon">🔈</span>
+      </button>
+
+      <!-- Mobil sanal joystick -->
+      <div id="joystick" class="hidden">
+        <div id="joystick-knob"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

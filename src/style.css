@@ -1,0 +1,205 @@
+:root {
+  --accent: #4aa3df;
+  --sky: #ffb27a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0e14;
+  color: #fff;
+}
+
+canvas { display: block; }
+
+.hidden { display: none !important; }
+
+/* ---------- Karşılama ekranı ---------- */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 25%, rgba(74, 163, 223, 0.22), transparent 60%),
+    linear-gradient(165deg, #243140 0%, #324a63 55%, #5b7186 100%);
+  transition: opacity 0.8s ease;
+}
+
+#welcome {
+  text-align: center;
+  max-width: 560px;
+  padding: 2rem;
+}
+
+#welcome-logo {
+  width: 140px;
+  height: auto;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.4));
+}
+
+#welcome-title {
+  font-size: 2.6rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+#welcome-sub {
+  font-size: 1rem;
+  opacity: 0.8;
+  margin: 0 0 1.5rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+#welcome-intro {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  opacity: 0.92;
+  margin: 0 auto 2rem;
+  max-width: 460px;
+}
+
+#enter-btn {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  padding: 0.9rem 2.6rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 8px 30px rgba(74, 163, 223, 0.45);
+}
+#enter-btn:hover:not(:disabled) { transform: translateY(-2px); background: #5fb4ef; }
+#enter-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+
+#loading-bar {
+  width: 280px;
+  height: 6px;
+  margin: 1.6rem auto 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+#loading-fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+#loading-text { font-size: 0.85rem; opacity: 0.7; margin: 0; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+
+#instructions {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  background: rgba(10, 14, 20, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  transition: opacity 0.6s ease;
+}
+.key {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+#info-card {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%) translateX(20px);
+  width: 320px;
+  background: rgba(10, 14, 20, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  padding: 24px 26px;
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+#info-card.show { opacity: 1; transform: translateY(-50%) translateX(0); }
+#card-title { margin: 0 0 0.3rem; font-size: 1.4rem; }
+#card-photographer { margin: 0 0 0.2rem; font-size: 0.95rem; color: var(--accent); font-weight: 600; }
+#card-meta { margin: 0 0 1rem; font-size: 0.8rem; opacity: 0.6; letter-spacing: 0.5px; text-transform: uppercase; }
+#card-desc { margin: 0; font-size: 0.95rem; line-height: 1.6; opacity: 0.85; }
+
+#crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- Ses butonu ---------- */
+#sound-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(10, 14, 20, 0.55);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+#sound-btn:hover { background: rgba(74, 163, 223, 0.6); transform: scale(1.05); }
+
+/* ---------- Mobil joystick ---------- */
+#joystick {
+  position: absolute;
+  left: 28px;
+  bottom: 28px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(10, 14, 20, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  touch-action: none;
+}
+#joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
