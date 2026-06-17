@@ -604,6 +604,7 @@ if (isTouch) {
 const soundBtn = document.getElementById('sound-btn');
 const soundIcon = document.getElementById('sound-icon');
 let audioCtx = null, windGain = null, windOn = false;
+const WIND_VOL = 0.24;
 
 function ensureWind() {
   if (audioCtx) return;
@@ -646,14 +647,23 @@ function ensureWind() {
   lfo.start();
 }
 
-function toggleWind() {
-  ensureWind();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  windOn = !windOn;
+function applyWindGain() {
   const now = audioCtx.currentTime;
   windGain.gain.cancelScheduledValues(now);
-  windGain.gain.setTargetAtTime(windOn ? 0.16 : 0, now, 0.6);
+  windGain.gain.setTargetAtTime(windOn ? WIND_VOL : 0, now, 0.5);
+}
+
+function toggleWind() {
+  ensureWind();
+  windOn = !windOn;
   soundIcon.textContent = windOn ? '🔊' : '🔈';
+  // iOS/mobil: AudioContext kullanıcı jesti içinde resume edilmeli;
+  // resume bitince gain'i uygula (suspended iken zamanlama gecikebiliyor).
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(applyWindGain).catch(applyWindGain);
+  } else {
+    applyWindGain();
+  }
 }
 
 soundBtn.addEventListener('click', (e) => {
