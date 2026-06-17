@@ -321,6 +321,58 @@ function updateMovement(dt) {
 }
 
 // ---------------------------------------------------------------------------
+// Lightbox — fotoğrafı tam karşıdan, büyük göster
+// ---------------------------------------------------------------------------
+const lightbox = document.getElementById('lightbox');
+const lbImg = document.getElementById('lightbox-img');
+const lbTitle = document.getElementById('lb-title');
+const lbPhotographer = document.getElementById('lb-photographer');
+const lbMeta = document.getElementById('lb-meta');
+const lbDesc = document.getElementById('lb-desc');
+const lbClose = document.getElementById('lightbox-close');
+let lightboxOpen = false;
+
+function openLightbox(p) {
+  if (!p) return;
+  lbImg.src = p.file;
+  lbImg.alt = p.title || '';
+  lbTitle.textContent = p.title || '';
+  lbPhotographer.textContent = p.photographer || '';
+  lbMeta.textContent = [p.location, p.year].filter(Boolean).join(' · ');
+  lbDesc.textContent = p.description || '';
+  lightbox.classList.remove('hidden');
+  requestAnimationFrame(() => lightbox.classList.add('show'));
+  lightboxOpen = true;
+  if (controls.isLocked) controls.unlock(); // imleci serbest bırak (masaüstü)
+}
+
+function closeLightbox() {
+  lightbox.classList.remove('show');
+  setTimeout(() => lightbox.classList.add('hidden'), 350);
+  lightboxOpen = false;
+  if (!isTouch && started) controls.lock(); // masaüstünde gezinmeye geri dön
+}
+
+lbClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+lightbox.addEventListener('click', closeLightbox); // arka plana tıkla/dokun = kapat
+addEventListener('keydown', (e) => { if (e.code === 'Escape' && lightboxOpen) closeLightbox(); });
+
+// Bilgi kartına tıkla/dokun → büyüt
+infoCard.addEventListener('click', () => { if (activePanel) openLightbox(activePanel.data); });
+
+// Masaüstü tuval tıklaması:
+//  • imleç kilitli + esere odaklı → büyüt
+//  • imleç serbest (ESC sonrası) → gezinmeye geri dön
+renderer.domElement.addEventListener('mousedown', () => {
+  if (isTouch || lightboxOpen) return;
+  if (controls.isLocked) {
+    if (activePanel) openLightbox(activePanel.data);
+  } else if (started) {
+    controls.lock();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Yaklaşma-bazlı bilgi kartı + odak parıltısı
 // ---------------------------------------------------------------------------
 const infoCard = document.getElementById('info-card');
@@ -328,6 +380,8 @@ const cardTitle = document.getElementById('card-title');
 const cardPhotographer = document.getElementById('card-photographer');
 const cardMeta = document.getElementById('card-meta');
 const cardDesc = document.getElementById('card-desc');
+const cardHint = document.getElementById('card-hint');
+cardHint.textContent = isTouch ? 'Büyütmek için dokun' : 'Büyütmek için tıkla';
 
 let activePanel = null;
 const camPos = new THREE.Vector3();
@@ -450,7 +504,8 @@ enterBtn.addEventListener('click', () => {
   } else {
     controls.lock();
   }
-  setTimeout(() => (instructions.style.opacity = '0.25'), 8000);
+  // Yönergeleri bir süre sonra tamamen soldur (fotoğrafların önünü kapatmasın)
+  setTimeout(() => { instructions.style.opacity = '0'; }, isTouch ? 5000 : 8000);
 });
 
 // Talimat metnini cihaza göre uyarla
@@ -505,17 +560,18 @@ if (isTouch) {
   joy.addEventListener('touchend', joyEnd);
   joy.addEventListener('touchcancel', joyEnd);
 
-  // Bakış — joystick dışındaki dokunuşlar
+  // Bakış — joystick dışındaki dokunuşlar (az hareketli dokunuş = "büyüt")
   const LOOK_SENS = 0.005;
-  let lookId = null, lastX = 0, lastY = 0;
+  let lookId = null, lastX = 0, lastY = 0, startX = 0, startY = 0, moved = 0;
   const el = renderer.domElement;
 
   el.addEventListener('touchstart', (e) => {
     if (lookId !== null) return;
     const t = e.changedTouches[0];
     lookId = t.identifier;
-    lastX = t.clientX;
-    lastY = t.clientY;
+    lastX = startX = t.clientX;
+    lastY = startY = t.clientY;
+    moved = 0;
   }, { passive: false });
 
   el.addEventListener('touchmove', (e) => {
@@ -526,11 +582,17 @@ if (isTouch) {
       pitch = Math.max(-1.2, Math.min(1.2, pitch));
       lastX = t.clientX;
       lastY = t.clientY;
+      moved = Math.max(moved, Math.hypot(t.clientX - startX, t.clientY - startY));
     }
   }, { passive: false });
 
   const lookEnd = (e) => {
-    for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null;
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookId) continue;
+      lookId = null;
+      // Sürükleme değil, dokunma ise ve bir esere odaklıysak → büyüt
+      if (moved < 12 && activePanel && !lightboxOpen) openLightbox(activePanel.data);
+    }
   };
   el.addEventListener('touchend', lookEnd);
   el.addEventListener('touchcancel', lookEnd);
@@ -594,7 +656,12 @@ function toggleWind() {
   soundIcon.textContent = windOn ? '🔊' : '🔈';
 }
 
-soundBtn.addEventListener('click', toggleWind);
+soundBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleWind();
+  // Masaüstünde butona tıklamak imleci serbest bırakır; gezinmeye geri dön
+  if (!isTouch && started && !lightboxOpen) controls.lock();
+});
 // Masaüstünde imleç kilitliyken butona tıklanamadığı için M kısayolu
 addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') toggleWind();
