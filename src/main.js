@@ -357,9 +357,6 @@ lbClose.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox();
 lightbox.addEventListener('click', closeLightbox); // arka plana tıkla/dokun = kapat
 addEventListener('keydown', (e) => { if (e.code === 'Escape' && lightboxOpen) closeLightbox(); });
 
-// Bilgi kartına tıkla/dokun → büyüt
-infoCard.addEventListener('click', () => { if (activePanel) openLightbox(activePanel.data); });
-
 // Masaüstü tuval tıklaması:
 //  • imleç kilitli + esere odaklı → büyüt
 //  • imleç serbest (ESC sonrası) → gezinmeye geri dön
@@ -382,6 +379,9 @@ const cardMeta = document.getElementById('card-meta');
 const cardDesc = document.getElementById('card-desc');
 const cardHint = document.getElementById('card-hint');
 cardHint.textContent = isTouch ? 'Büyütmek için dokun' : 'Büyütmek için tıkla';
+
+// Bilgi kartına tıkla/dokun → büyüt
+infoCard.addEventListener('click', () => { if (activePanel) openLightbox(activePanel.data); });
 
 let activePanel = null;
 const camPos = new THREE.Vector3();
